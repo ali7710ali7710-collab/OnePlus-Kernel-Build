@@ -8,31 +8,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. جلب الكود
-        uses: actions/checkout@v4
+      - name: 1. جلب الكود المصدري
+        run: |
+          git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
+          ls -R kernel_source | grep "defconfig"  # هذا السطر سيخبرنا أين يوجد الملف بالضبط
 
-      - name: 2. إعداد البيئة (Python3 Compatibility)
+      - name: 2. تثبيت الأدوات
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev
-          # إنشاء رابط يخدع الكيرنل بجعل أمر python يشير لـ python3
-          sudo ln -sf /usr/bin/python3 /usr/bin/python
 
-      - name: 3. بناء الكيرنل
+      - name: 3. بناء الكيرنل (بدون تعديلات مؤقتة)
         run: |
+          cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          # البحث عن ملف الـ defconfig وتعديله
-          CONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | head -n 1)
-          # إضافة إعدادات الشبكة والقنوات
-          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> $CONFIG_FILE
-          echo "CONFIG_NL80211_TESTMODE=y" >> $CONFIG_FILE
-          # بدء البناء
-          make $(basename $CONFIG_FILE)
+          # سنبني باستخدام ملف الـ defconfig الافتراضي الموجود في المجلد
+          make vendor/dre_defconfig
           make -j$(nproc)
 
       - name: 4. حفظ النتيجة
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-Image
-          path: arch/arm64/boot/Image.gz-dtb
+          path: kernel_source/arch/arm64/boot/Image.gz-dtb
