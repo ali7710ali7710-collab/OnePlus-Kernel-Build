@@ -6,26 +6,27 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: 1. جلب الكود المصدري
         run: |
           git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
           
-      - name: 2. تثبيت أدوات البناء
+      - name: 2. تثبيت الأدوات ودعم Python2
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison python2
+          sudo ln -sf /usr/bin/python2 /usr/bin/python
           
-      - name: 3. تعديل إعدادات الشبكة (Monitor Mode & Injection)
+      - name: 3. تعديل القنوات وإعدادات الشبكة
         run: |
           cd kernel_source
-          echo "CONFIG_WLAN=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_CFG80211=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_MAC80211=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_MAC80211_LEDS=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_MAC80211_MESH=y" >> arch/arm64/configs/vendor/dre_defconfig
+          # تفعيل القنوات غير المقيدة (World Regulatory Domain)
           echo "CONFIG_CFG80211_WEXT=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> arch/arm64/configs/vendor/dre_defconfig
+          # تفعيل وضع المراقبة وحقن الحزم
+          echo "CONFIG_MAC80211_MESH=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_WLAN=y" >> arch/arm64/configs/vendor/dre_defconfig
           
       - name: 4. بناء الكيرنل
         run: |
