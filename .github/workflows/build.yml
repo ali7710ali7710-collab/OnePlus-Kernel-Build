@@ -11,28 +11,33 @@ jobs:
       - name: 1. جلب الكود المصدري
         uses: actions/checkout@v4
 
-      - name: 2. إعداد بيئة البناء وتثبيت Python2
+      - name: 2. إعداد البيئة وتثبيت Python2
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
-          # تحميل وتثبيت python2 مباشرة من أرشيف قديم لضمان العمل
           curl https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz -o python2.tgz
           tar -xf python2.tgz
           cd Python-2.7.18 && ./configure && make -j$(nproc) && sudo make install
           sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python
 
-      - name: 3. تعديل القنوات والأداء
+      - name: 3. العثور على ملف الإعداد وتعديله
         run: |
-          # تطبيق التعديلات مباشرة على ملف الإعدادات
-          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_NL80211_TESTMODE=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_MAC80211_DEBUGFS=y" >> arch/arm64/configs/vendor/dre_defconfig
+          # البحث عن ملف الـ defconfig الصحيح داخل المستودع
+          CONFIG_FILE=$(find . -name "*defconfig" | grep "dre_defconfig" | head -n 1)
+          echo "Found config at: $CONFIG_FILE"
+          
+          # تطبيق التعديلات
+          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> $CONFIG_FILE
+          echo "CONFIG_NL80211_TESTMODE=y" >> $CONFIG_FILE
+          echo "CONFIG_MAC80211_DEBUGFS=y" >> $CONFIG_FILE
 
       - name: 4. بناء الكيرنل
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make vendor/dre_defconfig
+          # استخراج اسم المجلد الصحيح للإعداد
+          CONFIG_NAME=$(basename $(find . -name "*dre_defconfig*"))
+          make $CONFIG_NAME
           make -j$(nproc)
 
       - name: 5. حفظ النتيجة
