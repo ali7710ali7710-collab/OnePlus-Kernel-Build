@@ -11,34 +11,21 @@ jobs:
       - name: 1. جلب الكود المصدري
         uses: actions/checkout@v4
 
-      - name: 2. إعداد البيئة وتثبيت Python2
+      - name: 2. تثبيت الأدوات الأساسية
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
-          curl https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz -o python2.tgz
-          tar -xf python2.tgz
-          cd Python-2.7.18 && ./configure && make -j$(nproc) && sudo make install
-          sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python
 
-      - name: 3. تعديل الإعدادات (المسار المباشر)
-        run: |
-          # نكتب التعديلات مباشرة في ملف الـ defconfig المعروف في كود OnePlus
-          CONFIG_FILE="arch/arm64/configs/vendor/dre_defconfig"
-          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> $CONFIG_FILE
-          echo "CONFIG_NL80211_TESTMODE=y" >> $CONFIG_FILE
-          echo "CONFIG_MAC80211_DEBUGFS=y" >> $CONFIG_FILE
-          echo "CONFIG_ATH_CARDS=y" >> $CONFIG_FILE
-          echo "CONFIG_WLAN_VENDOR_ATH=y" >> $CONFIG_FILE
-          echo "CONFIG_NET_SCH_FQ_CODEL=y" >> $CONFIG_FILE
-
-      - name: 4. بناء الكيرنل
+      - name: 3. بناء الكيرنل (الافتراضي)
         run: |
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make vendor/dre_defconfig
+          # البحث عن أي ملف defconfig داخل المجلد
+          CONFIG=$(find arch/arm64/configs/ -name "*defconfig" | head -n 1)
+          make $(basename $CONFIG)
           make -j$(nproc)
 
-      - name: 5. حفظ النتيجة
+      - name: 4. حفظ النتيجة
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-Image
