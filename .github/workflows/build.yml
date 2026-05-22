@@ -7,39 +7,36 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: fr3akyphantom/droid-builder:latest
     steps:
-      - name: 1. إعداد الصلاحيات وجلب الكود
+      - name: 1. جلب الكود المصدري
+        uses: actions/checkout@v4
+
+      - name: 2. إعداد بيئة البناء وتثبيت Python2
         run: |
-          # منح صلاحيات الكتابة للمجلد
-          chmod -R 777 .
-          git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
-          
-      - name: 2. إعدادات الشبكة وتعديل القنوات والأداء
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
+          # تحميل وتثبيت python2 مباشرة من أرشيف قديم لضمان العمل
+          curl https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz -o python2.tgz
+          tar -xf python2.tgz
+          cd Python-2.7.18 && ./configure && make -j$(nproc) && sudo make install
+          sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python
+
+      - name: 3. تعديل القنوات والأداء
         run: |
-          cd kernel_source
-          echo "CONFIG_CFG80211_WEXT=y" >> arch/arm64/configs/vendor/dre_defconfig
+          # تطبيق التعديلات مباشرة على ملف الإعدادات
           echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_WLAN=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_MAC80211=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_MAC80211_MESH=y" >> arch/arm64/configs/vendor/dre_defconfig
           echo "CONFIG_NL80211_TESTMODE=y" >> arch/arm64/configs/vendor/dre_defconfig
           echo "CONFIG_MAC80211_DEBUGFS=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_ATH_CARDS=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_WLAN_VENDOR_ATH=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_NET_SCH_FQ_CODEL=y" >> arch/arm64/configs/vendor/dre_defconfig
-          
-      - name: 3. بناء الكيرنل
+
+      - name: 4. بناء الكيرنل
         run: |
-          cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           make vendor/dre_defconfig
           make -j$(nproc)
-          
-      - name: 4. حفظ ملف النتيجة
+
+      - name: 5. حفظ النتيجة
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-Image
-          path: kernel_source/arch/arm64/boot/Image.gz-dtb
+          path: arch/arm64/boot/Image.gz-dtb
