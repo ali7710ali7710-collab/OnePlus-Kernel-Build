@@ -9,22 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 1. جلب الكود المصدري
-        run: |
-          git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
+        run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
-      - name: 2. تثبيت الأدوات الأساسية
+      - name: 2. تثبيت الأدوات والتبعات
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev libncurses5-dev
+          # تفعيل python2 لعمليات البناء
+          sudo apt-get install -y python2
+          sudo ln -sf /usr/bin/python2 /usr/bin/python
 
       - name: 3. بناء الكيرنل
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          # البحث عن ملف الـ config داخل مجلد الكود الذي حملناه
-          CONFIG=$(find arch/arm64/configs/ -name "*defconfig" | head -n 1)
-          make $(basename $CONFIG)
+          # البناء باستخدام الإعدادات الافتراضية للبدء
+          make vendor/dre_defconfig
           make -j$(nproc)
 
       - name: 4. حفظ النتيجة
