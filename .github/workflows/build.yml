@@ -15,7 +15,9 @@ jobs:
       - name: 2. تثبيت أدوات البناء
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison python2
+          sudo ln -sf /usr/bin/python2 /usr/bin/python
+
           
       - name: 3. تعديل إعدادات الشبكة (Monitor Mode & Injection)
         run: |
