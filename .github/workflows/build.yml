@@ -1,0 +1,32 @@
+name: Build OnePlus Kernel
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: 1. جلب الكود المصدري
+        run: |
+          git clone -b android-11 https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
+          
+      - name: 2. تثبيت أدوات البناء
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
+          
+      - name: 3. بناء الكيرنل
+        run: |
+          cd kernel_source
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          make vendor/dre_defconfig
+          make -j$(nproc)
+          
+      - name: 4. حفظ ملف النتيجة
+        uses: actions/upload-artifact@v3
+        with:
+          name: Kernel-Image
+          path: kernel_source/arch/arm64/boot/Image.gz-dtb
