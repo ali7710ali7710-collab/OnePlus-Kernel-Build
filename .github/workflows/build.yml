@@ -17,7 +17,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison
           
-      - name: 3. بناء الكيرنل
+      - name: 3. تعديل إعدادات الشبكة (Monitor Mode & Injection)
+        run: |
+          cd kernel_source
+          # تفعيل دعم كروت الشبكة اللاسلكية بشكل موسع
+          echo "CONFIG_WLAN=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_CFG80211=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_MAC80211=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_MAC80211_LEDS=y" >> arch/arm64/configs/vendor/dre_defconfig
+          # تفعيل ميزة حقن الحزم (Packet Injection)
+          echo "CONFIG_MAC80211_MESH=y" >> arch/arm64/configs/vendor/dre_defconfig
+          # إزالة الحماية عن وضع المراقبة (Monitor Mode)
+          echo "CONFIG_CFG80211_WEXT=y" >> arch/arm64/configs/vendor/dre_defconfig
+          
+      - name: 4. بناء الكيرنل
         run: |
           cd kernel_source
           export ARCH=arm64
@@ -25,8 +38,8 @@ jobs:
           make vendor/dre_defconfig
           make -j$(nproc)
           
-      - name: 4. حفظ ملف النتيجة
-        uses: actions/upload-artifact@v3
+      - name: 5. حفظ ملف النتيجة
+        uses: actions/upload-artifact@v4
         with:
           name: Kernel-Image
-          path: kernel_source/arch/arm64/boot/Image.gz-dtb 
+          path: kernel_source/arch/arm64/boot/Image.gz-dtb
