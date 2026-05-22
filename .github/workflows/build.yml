@@ -15,18 +15,22 @@ jobs:
       - name: 2. تثبيت الأدوات ودعم Python2
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison python2
-          sudo ln -sf /usr/bin/python2 /usr/bin/python
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison software-properties-common
+          # إضافة مستودع deadsnakes للحصول على python2
+          sudo add-apt-repository ppa:deadsnakes/ppa
+          sudo apt-get update
+          sudo apt-get install -y python2.7
+          # ربط python بـ python2.7
+          sudo ln -sf /usr/bin/python2.7 /usr/bin/python
           
-      - name: 3. تعديل القنوات وإعدادات الشبكة
+      - name: 3. تعديل إعدادات الشبكة
         run: |
           cd kernel_source
-          # تفعيل القنوات غير المقيدة (World Regulatory Domain)
-          echo "CONFIG_CFG80211_WEXT=y" >> arch/arm64/configs/vendor/dre_defconfig
-          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> arch/arm64/configs/vendor/dre_defconfig
-          # تفعيل وضع المراقبة وحقن الحزم
-          echo "CONFIG_MAC80211_MESH=y" >> arch/arm64/configs/vendor/dre_defconfig
           echo "CONFIG_WLAN=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_CFG80211=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_MAC80211=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_MAC80211_MESH=y" >> arch/arm64/configs/vendor/dre_defconfig
+          echo "CONFIG_CFG80211_INTERNAL_REGDB=y" >> arch/arm64/configs/vendor/dre_defconfig
           
       - name: 4. بناء الكيرنل
         run: |
