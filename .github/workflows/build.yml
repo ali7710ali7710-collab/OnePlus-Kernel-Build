@@ -28,16 +28,15 @@ jobs:
           
           # تثبيت الأدوات الضرورية للبناء والترجمة
           sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev libcrypto++-dev
+          echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
+          sed -i 's/CONFIG_TECHPACK_ONEPLUS_POWER=y/# CONFIG_TECHPACK_ONEPLUS_POWER is not set/g' $TARGET_CONFIG
+          sed -i 's/CONFIG_TECHPACK_ONEPLUS=y/# CONFIG_TECHPACK_ONEPLUS is not set/g' $TARGET_CONFIG
 
           echo "========================================================"
           echo "🔥 بدء حقن إعدادات Kali NetHunter والشبكات الافتراضية 🔥"
           echo "========================================================"
           
           TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
-          
-          echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
-          sed -i 's/CONFIG_TECHPACK_ONEPLUS_POWER=y/# CONFIG_TECHPACK_ONEPLUS_POWER is not set/g' $TARGET_CONFIG
-          sed -i 's/CONFIG_TECHPACK_ONEPLUS=y/# CONFIG_TECHPACK_ONEPLUS is not set/g' $TARGET_CONFIG
 
 
           # [1] تفعيل دعم كالي لينكس الأساسي والـ Chroot والمراقبة
