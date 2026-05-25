@@ -1,4 +1,4 @@
-name: Smart OnePlus Kernel Build (Kali NetHunter Ready with Log Analysis)
+name: Smart OnePlus Kernel Build (Python3-Compatible, Kali NetHunter)
 
 on:
   push:
@@ -8,34 +8,37 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: 1. Clone Kernel Source
         run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
-      - name: 2. Install Dependencies + Python2
+      - name: 2. Install Build Dependencies (Python3 only)
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential \
-            flex bison bc libssl-dev libcrypto++-dev libncurses-dev libelf-dev python2
-          # symlink python2 so scripts find it
-          sudo ln -sf /usr/bin/python2 /usr/bin/python
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc \
+          libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
+          sudo ln -sf /usr/bin/python3 /usr/bin/python
 
-      - name: 3. Smart Techpack Cleanup
+      - name: 3. Redirect python2 calls to python3 (if compatible)
+        run: |
+          # أي استدعاء python2 يتم توجيهه إلى python3
+          sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
+
+      - name: 4. Smart Techpack Cleanup
         run: |
           cd kernel_source
           if [ -d techpack ]; then
-            find techpack -type d | while read dir; do
-              if [ ! -f "$dir/Makefile" ]; then
-                echo "obj-y :=" > "$dir/Makefile"
-              fi
-            done
+              find techpack -type d | while read dir; do
+                  if [ ! -f "$dir/Makefile" ]; then
+                      echo "obj-y :=" > "$dir/Makefile"
+                  fi
+              done
           fi
 
-      - name: 4. Select defconfig and Inject Configs
+      - name: 5. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
-          CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n1)
+          CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
           CONFIG_NAME=$(basename $CONFIG)
           TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
 
@@ -49,7 +52,7 @@ jobs:
           echo "CONFIG_USER_NS=y" >> $TARGET_CONFIG
           echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
           echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
-          
+
           echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
           echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
           echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
@@ -79,36 +82,35 @@ jobs:
           echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
           echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
 
-      - name: 5. Prepare .config if missing
+      - name: 6. Prepare .config if missing
         run: |
           cd kernel_source
           if [ ! -f .config ]; then
-            make $CONFIG_NAME olddefconfig || echo "⚠️ olddefconfig warning"
+              make $CONFIG_NAME olddefconfig || echo "⚠️ Warning: olddefconfig failed, continuing..."
           fi
 
-      - name: 6. Build Kernel in Parallel & Capture Log
+      - name: 7. Build Kernel in Parallel with Error Tolerance
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          
+          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Non-critical errors ignored during kernel build"
 
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Non-critical errors during build"
-
-      - name: 7. Analyze Build Log for Warnings/Errors
+      - name: 8. Analyze Build Log
         run: |
           cd kernel_source
-          grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found"
-          echo "🔍 build-warnings.log:"
+          grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found."
           cat build-warnings.log
 
-      - name: 8. Upload Kernel Artifact
+      - name: 9. Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NetHunter-Kernel-Image
           path: kernel_source/arch/arm64/boot/Image.gz-dtb
           if-no-files-found: warn
 
-      - name: 9. Upload Build Warnings Log
+      - name: 10. Upload Build Warnings Log
         uses: actions/upload-artifact@v4
         with:
           name: Build-Warnings-Log
