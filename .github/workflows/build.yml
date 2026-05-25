@@ -26,18 +26,17 @@ jobs:
           CONFIG_NAME=$(basename $CONFIG)
           echo "تم اختيار ملف الإعداد: $CONFIG_NAME"
           
-          # تثبيت الأدوات الضرورية للبناء والترجمة
+          # تثبيت الأدوات الضرورية في نفس الخطوة (تم إضافة مكتبة التشفير لضمان عدم الفشل)
           sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev libcrypto++-dev
+
+          TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
+
           echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
           sed -i 's/CONFIG_TECHPACK_ONEPLUS_POWER=y/# CONFIG_TECHPACK_ONEPLUS_POWER is not set/g' $TARGET_CONFIG
           sed -i 's/CONFIG_TECHPACK_ONEPLUS=y/# CONFIG_TECHPACK_ONEPLUS is not set/g' $TARGET_CONFIG
 
-          echo "========================================================"
-          echo "🔥 بدء حقن إعدادات Kali NetHunter والشبكات الافتراضية 🔥"
-          echo "========================================================"
-          
-          TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
-
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
 
           # [1] تفعيل دعم كالي لينكس الأساسي والـ Chroot والمراقبة
           echo "CONFIG_KALLSYMS=y" >> $TARGET_CONFIG
@@ -50,7 +49,7 @@ jobs:
           echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
           echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
 
-          # [2] تفعيل ميزات الكروت الوهمية والجسور لتجاوز قيود السيرفرات (التي طلبتها)
+          # [2] تفعيل ميزات الكروت الوهمية والجسور لتجاوز قيود السيرفرات
           echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
           echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
           echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
@@ -87,14 +86,8 @@ jobs:
           echo "✅ تم حقن جميع الخصائص بنجاح داخل ملف الـ defconfig"
           echo "========================================================"
 
-          # بدء عملية تجميع وتصدير النواة
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          
-          # تهيئة الإعدادات
+          # تهيئة الإعدادات وبدء عملية التجميع
           make $CONFIG_NAME
-          
-          # البناء الفعلي للنواة باستخدام أقصى طاقة للمعالج السحابي
           make -j$(nproc)
 
       - name: 4. حفظ وتجهيز ملف النواة المستخرجة كملف جاهز للتحميل
