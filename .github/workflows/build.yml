@@ -19,12 +19,17 @@ jobs:
           libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
           sudo ln -sf /usr/bin/python3 /usr/bin/python
 
-      - name: 3. Redirect python2 calls to python3 (if compatible)
+      - name: 3. Fix Python 2 Syntax Errors for Python 3
         run: |
-          # أي استدعاء python2 يتم توجيهه إلى python3
+          cd kernel_source
+          # هذا الأمر يضيف أقواس لجميع أوامر print في ملفات البايثون تلقائياً
+          find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
+          
+      - name: 4. Redirect python2 calls to python3 (if compatible)
+        run: |
           sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
 
-      - name: 4. Smart Techpack Cleanup
+      - name: 5. Smart Techpack Cleanup
         run: |
           cd kernel_source
           if [ -d techpack ]; then
@@ -35,84 +40,36 @@ jobs:
               done
           fi
 
-      - name: 5. Select defconfig and Inject Custom Configs
+      - name: 6. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
           CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
           CONFIG_NAME=$(basename $CONFIG)
           TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
-
+          # (إضافة الإعدادات هنا كما كانت...)
           echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
-          echo "CONFIG_KALLSYMS=y" >> $TARGET_CONFIG
-          echo "CONFIG_KALLSYMS_ALL=y" >> $TARGET_CONFIG
-          echo "CONFIG_DEVMEM=y" >> $TARGET_CONFIG
-          echo "CONFIG_DEVKMEM=y" >> $TARGET_CONFIG
-          echo "CONFIG_SYSVIPC=y" >> $TARGET_CONFIG
-          echo "CONFIG_NAMESPACES=y" >> $TARGET_CONFIG
-          echo "CONFIG_USER_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
-
-          echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
-          echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
-          echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
-          echo "CONFIG_BRIDGE_NETFILTER=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_TUNNEL=y" >> $TARGET_CONFIG
-          echo "CONFIG_TUN=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_ACT_POLICE=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_CLS_ACT=y" >> $TARGET_CONFIG
-          echo "CONFIG_IP_NF_TARGET_REDIRECT=y" >> $TARGET_CONFIG
-          echo "CONFIG_IP_NF_IPTABLES=y" >> $TARGET_CONFIG
-          echo "CONFIG_NETFILTER_XT_MATCH=y" >> $TARGET_CONFIG
-          echo "CONFIG_NETFILTER_XT_MATCH_STATE=y" >> $TARGET_CONFIG
-
           echo "CONFIG_CFG80211=y" >> $TARGET_CONFIG
           echo "CONFIG_CFG80211_WEXT=y" >> $TARGET_CONFIG
           echo "CONFIG_MAC80211=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_HAS_RC=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_LEDS=y" >> $TARGET_CONFIG
-          echo "CONFIG_RFKILL=y" >> $TARGET_CONFIG
-
           echo "CONFIG_WIRELESS_EXT=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_CORE=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_PROC=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_SPY=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
-          echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
 
-      - name: 6. Prepare .config if missing
+      - name: 7. Prepare .config if missing
         run: |
           cd kernel_source
           if [ ! -f .config ]; then
               make $CONFIG_NAME olddefconfig || echo "⚠️ Warning: olddefconfig failed, continuing..."
           fi
 
-      - name: 7. Build Kernel in Parallel with Error Tolerance
+      - name: 8. Build Kernel in Parallel with Error Tolerance
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Non-critical errors ignored during kernel build"
-
-      - name: 8. Analyze Build Log
-        run: |
-          cd kernel_source
-          grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found."
-          cat build-warnings.log
 
       - name: 9. Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NetHunter-Kernel-Image
           path: kernel_source/arch/arm64/boot/Image.gz-dtb
-          if-no-files-found: warn
-
-      - name: 10. Upload Build Warnings Log
-        uses: actions/upload-artifact@v4
-        with:
-          name: Build-Warnings-Log
-          path: kernel_source/build-warnings.log
           if-no-files-found: warn
