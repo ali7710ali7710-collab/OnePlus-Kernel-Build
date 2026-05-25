@@ -12,12 +12,21 @@ jobs:
       - name: 1. Clone Kernel Source
         run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
-      - name: 2. Install Build Dependencies + Python Compatibility
+      - name: 2. Install Build Dependencies (Python3 only)
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc \
-          libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv python2-minimal
+          libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
           sudo ln -sf /usr/bin/python3 /usr/bin/python
+
+      - name: 3. Fix Python 2 Syntax Errors for Python 3
+        run: |
+          cd kernel_source
+          # هذا الأمر يضيف أقواس لجميع أوامر print في ملفات البايثون تلقائياً
+          find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
+          
+      - name: 4. Redirect python2 calls to python3 (if compatible)
+        run: |
           sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
 
       - name: 3. Initial Techpack Repair (Known Folders)
