@@ -40,6 +40,21 @@ jobs:
               done
           fi
 
+      - name: 5a. Create Expected Techpack Directories with Placeholder Makefiles
+        run: |
+          cd kernel_source
+          # Find all expected Makefile paths in techpack from errors and create placeholder if missing
+          mkdir -p techpack/oneplus/power
+          mkdir -p techpack/oneplus/display
+          mkdir -p techpack/oneplus/sensors
+
+          for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors; do
+              if [ ! -f "$dir/Makefile" ]; then
+                  echo "Creating placeholder Makefile in $dir"
+                  echo "obj-y :=" > "$dir/Makefile"
+              fi
+          done
+
       - name: 6. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
