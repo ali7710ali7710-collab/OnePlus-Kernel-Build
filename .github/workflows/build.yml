@@ -22,6 +22,10 @@ jobs:
         run: |
           cd kernel_source
           # البحث عن أول ملف defconfig وإسناده لمتغير ديناميكي
+          echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
+          sed -i 's/CONFIG_TECHPACK_ONEPLUS_POWER=y/# CONFIG_TECHPACK_ONEPLUS_POWER is not set/g' $TARGET_CONFIG
+          sed -i 's/CONFIG_TECHPACK_ONEPLUS=y/# CONFIG_TECHPACK_ONEPLUS is not set/g' $TARGET_CONFIG
+
           CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
           CONFIG_NAME=$(basename $CONFIG)
           echo "تم اختيار ملف الإعداد: $CONFIG_NAME"
