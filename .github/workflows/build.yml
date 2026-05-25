@@ -53,12 +53,16 @@ jobs:
           echo "CONFIG_MAC80211=y" >> $TARGET_CONFIG
           echo "CONFIG_WIRELESS_EXT=y" >> $TARGET_CONFIG
 
-      - name: 7. Prepare .config if missing
+      - name: 7. Build Kernel
         run: |
           cd kernel_source
-          if [ ! -f .config ]; then
-              make $CONFIG_NAME olddefconfig || echo "⚠️ Warning: olddefconfig failed, continuing..."
-          fi
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          # أزلنا الجزء الذي يتجاهل الأخطاء لنرى أين يتوقف البناء بالضبط
+          make clean
+          make mrproper
+          make $CONFIG_NAME
+          make -j$(nproc)
 
       - name: 8. Build Kernel in Parallel with Error Tolerance
         run: |
