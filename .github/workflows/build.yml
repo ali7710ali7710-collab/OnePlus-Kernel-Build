@@ -1,4 +1,4 @@
-name: Build OnePlus Kernel
+name: Build OnePlus Kernel (Kali NetHunter Supported)
 on:
   push:
     branches: [ main ]
@@ -8,7 +8,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. جلب الكود
+      - name: 1. جلب الكود المصدري
         run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
       - name: 2. استكشاف المسارات الصحيحة (مهم جداً)
@@ -18,19 +18,83 @@ jobs:
           find arch/arm64/configs -name "*defconfig*"
           echo "--- انتهاء القائمة ---"
 
-      - name: 3. البناء التلقائي
+      - name: 3. البناء التلقائي وحقن دعم كالي لينكس والشبكات
         run: |
           cd kernel_source
-          # البحث عن أول ملف defconfig وإسناده لمتغير
+          # البحث عن أول ملف defconfig وإسناده لمتغير ديناميكي
           CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
           CONFIG_NAME=$(basename $CONFIG)
           echo "تم اختيار ملف الإعداد: $CONFIG_NAME"
           
-          # تثبيت الأدوات الضرورية في نفس الخطوة
-          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev
+          # تثبيت الأدوات الضرورية للبناء والترجمة
+          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev libcrypto++-dev
+
+          echo "========================================================"
+          echo "🔥 بدء حقن إعدادات Kali NetHunter والشبكات الافتراضية 🔥"
+          echo "========================================================"
           
-          # البناء
+          TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
+
+          # [1] تفعيل دعم كالي لينكس الأساسي والـ Chroot والمراقبة
+          echo "CONFIG_KALLSYMS=y" >> $TARGET_CONFIG
+          echo "CONFIG_KALLSYMS_ALL=y" >> $TARGET_CONFIG
+          echo "CONFIG_DEVMEM=y" >> $TARGET_CONFIG
+          echo "CONFIG_DEVKMEM=y" >> $TARGET_CONFIG
+          echo "CONFIG_SYSVIPC=y" >> $TARGET_CONFIG
+          echo "CONFIG_NAMESPACES=y" >> $TARGET_CONFIG
+          echo "CONFIG_USER_NS=y" >> $TARGET_CONFIG
+          echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
+          echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
+
+          # [2] تفعيل ميزات الكروت الوهمية والجسور لتجاوز قيود السيرفرات (التي طلبتها)
+          echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
+          echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
+          echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
+          echo "CONFIG_BRIDGE_NETFILTER=y" >> $TARGET_CONFIG
+          echo "CONFIG_NET_TUNNEL=y" >> $TARGET_CONFIG
+          echo "CONFIG_TUN=y" >> $TARGET_CONFIG
+
+          # [3] تفعيل التوجيه المتقدم والتحكم في الحزم والآيبيهات العشوائية
+          echo "CONFIG_NET_ACT_POLICE=y" >> $TARGET_CONFIG
+          echo "CONFIG_NET_CLS_ACT=y" >> $TARGET_CONFIG
+          echo "CONFIG_IP_NF_TARGET_REDIRECT=y" >> $TARGET_CONFIG
+          echo "CONFIG_IP_NF_IPTABLES=y" >> $TARGET_CONFIG
+          echo "CONFIG_NETFILTER_XT_MATCH=y" >> $TARGET_CONFIG
+          echo "CONFIG_NETFILTER_XT_MATCH_STATE=y" >> $TARGET_CONFIG
+
+          # [4] تفعيل دعم وضع المراقبة وحقن الحزم لكروت الواي فاي (Monitor Mode & Injection)
+          echo "CONFIG_CFG80211=y" >> $TARGET_CONFIG
+          echo "CONFIG_CFG80211_WEXT=y" >> $TARGET_CONFIG
+          echo "CONFIG_MAC80211=y" >> $TARGET_CONFIG
+          echo "CONFIG_MAC80211_HAS_RC=y" >> $TARGET_CONFIG
+          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> $TARGET_CONFIG
+          echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> $TARGET_CONFIG
+          echo "CONFIG_MAC80211_LEDS=y" >> $TARGET_CONFIG
+          echo "CONFIG_RFKILL=y" >> $TARGET_CONFIG
+
+          # [5] تفعيل دعم فلاشات الواي فاي الخارجية والـ OTG (Ralink, Atheros, Realtek)
+          echo "CONFIG_WIRELESS_EXT=y" >> $TARGET_CONFIG
+          echo "CONFIG_WEXT_CORE=y" >> $TARGET_CONFIG
+          echo "CONFIG_WEXT_PROC=y" >> $TARGET_CONFIG
+          echo "CONFIG_WEXT_SPY=y" >> $TARGET_CONFIG
+          echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
+          echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
+
+          echo "✅ تم حقن جميع الخصائص بنجاح داخل ملف الـ defconfig"
+          echo "========================================================"
+
+          # بدء عملية تجميع وتصدير النواة
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          
+          # تهيئة الإعدادات
           make $CONFIG_NAME
+          
+          # البناء الفعلي للنواة باستخدام أقصى طاقة للمعالج السحابي
           make -j$(nproc)
+
+      - name: 4. حفظ وتجهيز ملف النواة المستخرجة كملف جاهز للتحميل
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetHunter-Kernel-Image
+          path: kernel_source/arch/arm64/boot/Image.gz-dtb
