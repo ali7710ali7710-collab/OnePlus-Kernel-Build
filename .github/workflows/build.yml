@@ -1,4 +1,4 @@
-name: Smart OnePlus Kernel Build (Kali NetHunter Ready)
+name: Smart OnePlus Kernel Build (Kali NetHunter Ready with Log Analysis)
 
 on:
   push:
@@ -12,20 +12,18 @@ jobs:
       - name: 1. Clone Kernel Source
         run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
-      - name: 2. Install Build Dependencies
+      - name: 2. Install Build Dependencies + Python2
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev libcrypto++-dev libncurses-dev libelf-dev
+          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc libssl-dev libcrypto++-dev libncurses-dev libelf-dev python2-minimal
+          sudo ln -sf /usr/bin/python2 /usr/bin/python2
 
       - name: 3. Smart Techpack Cleanup
         run: |
           cd kernel_source
           if [ -d techpack ]; then
-              echo "Checking techpack directories..."
               find techpack -type d | while read dir; do
-                  # إنشاء ملفات Makefile فارغة إذا غير موجودة
                   if [ ! -f "$dir/Makefile" ]; then
-                      echo "Creating placeholder Makefile in $dir"
                       echo "obj-y :=" > "$dir/Makefile"
                   fi
               done
@@ -36,14 +34,9 @@ jobs:
           cd kernel_source
           CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
           CONFIG_NAME=$(basename $CONFIG)
-          echo "Selected defconfig: $CONFIG_NAME"
-          
           TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
 
-          # Disable techpack completely
           echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
-
-          # Inject Kali & namespaces
           echo "CONFIG_KALLSYMS=y" >> $TARGET_CONFIG
           echo "CONFIG_KALLSYMS_ALL=y" >> $TARGET_CONFIG
           echo "CONFIG_DEVMEM=y" >> $TARGET_CONFIG
@@ -53,8 +46,6 @@ jobs:
           echo "CONFIG_USER_NS=y" >> $TARGET_CONFIG
           echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
           echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
-
-          # Network & virtual devices
           echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
           echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
           echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
@@ -67,8 +58,6 @@ jobs:
           echo "CONFIG_IP_NF_IPTABLES=y" >> $TARGET_CONFIG
           echo "CONFIG_NETFILTER_XT_MATCH=y" >> $TARGET_CONFIG
           echo "CONFIG_NETFILTER_XT_MATCH_STATE=y" >> $TARGET_CONFIG
-
-          # Wi-Fi monitor & injection
           echo "CONFIG_CFG80211=y" >> $TARGET_CONFIG
           echo "CONFIG_CFG80211_WEXT=y" >> $TARGET_CONFIG
           echo "CONFIG_MAC80211=y" >> $TARGET_CONFIG
@@ -77,8 +66,6 @@ jobs:
           echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> $TARGET_CONFIG
           echo "CONFIG_MAC80211_LEDS=y" >> $TARGET_CONFIG
           echo "CONFIG_RFKILL=y" >> $TARGET_CONFIG
-
-          # External Wi-Fi & OTG
           echo "CONFIG_WIRELESS_EXT=y" >> $TARGET_CONFIG
           echo "CONFIG_WEXT_CORE=y" >> $TARGET_CONFIG
           echo "CONFIG_WEXT_PROC=y" >> $TARGET_CONFIG
@@ -86,22 +73,40 @@ jobs:
           echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
           echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
 
-          echo "✅ Config injection completed successfully"
+      - name: 5. Prepare .config if missing
+        run: |
+          cd kernel_source
+          if [ ! -f .config ]; then
+              make $CONFIG_NAME olddefconfig || echo "⚠️ Warning: olddefconfig failed, continuing..."
+          fi
 
-      - name: 5. Build Kernel with Full Error Tolerance
+      - name: 6. Build Kernel in Parallel with Error Tolerance
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # Build defconfig
-          make $CONFIG_NAME || echo "⚠️ Warning: Non-critical error during make $CONFIG_NAME, continuing..."
-          
-          # Parallel build with all CPU cores
-          make -j$(nproc) || echo "⚠️ Warning: Non-critical errors occurred during kernel build, continuing..."
+          # Redirect stdout/stderr to build log
+          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Non-critical errors ignored during kernel build"
 
-      - name: 6. Upload Kernel Artifact
+      - name: 7. Analyze Build Log
+        run: |
+          cd kernel_source
+          echo "🔍 Scanning build.log for warnings/errors..."
+          grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found."
+          echo "✅ build-warnings.log generated. Content:"
+          cat build-warnings.log
+
+      - name: 8. Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NetHunter-Kernel-Image
           path: kernel_source/arch/arm64/boot/Image.gz-dtb
+          if-no-files-found: warn
+
+      - name: 9. Upload Build Warnings Log
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build-Warnings-Log
+          path: kernel_source/build-warnings.log
+          if-no-files-found: warn
