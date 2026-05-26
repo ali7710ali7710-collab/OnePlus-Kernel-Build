@@ -107,27 +107,16 @@ jobs:
           cd kernel_source/tools/objtool
           sed -i 's/-Werror//g' Makefile || echo "No -Werror found, skipping"
 
-      - name: 9. Build Kernel First Attempt (Capture Log)
+      - name: 9. Build Kernel (Without mrproper)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          
-          # حفظ الإعدادات وصلاحيات المجلد
-          cp .config .config.bak
-          
-          # تنظيف آمن دون تدمير الصلاحيات
+          # لا تقم بعمل mrproper نهائياً لأنه يحذف ملفات النظام
           make clean
-          make mrproper
-          
-          # استعادة الإعدادات وإعادة منح صلاحيات التنفيذ لكل شيء في المجلد
-          mv .config.bak .config
-          chmod -R +x .
-          
-          # البناء مع توجيه الصلاحيات
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
-
-
+          # تأكد من أن كل شيء قابل للتنفيذ
+          find . -name "*.sh" -exec chmod +x {} +
+          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Build finished with errors, check log."
       - name: 10. Auto-Fix Missing Techpack Folders from Log
         run: |
           cd kernel_source
@@ -139,12 +128,13 @@ jobs:
               fi
           done
 
-      - name: 11. Rebuild Kernel After Auto-Fix
+      - name: 11. Rebuild Kernel (If needed)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Final build finished with non-critical errors"
+          # استمرار البناء دون إعادة تنظيف
+          make -j$(nproc) >> build.log 2>&1 || echo "⚠️ Final build finished."
 
       - name: 12. Analyze Build Log
         run: |
