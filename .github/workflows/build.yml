@@ -1,4 +1,4 @@
-name: Ultra-Safe OnePlus Kernel Build (Final Version, Dynamic Techpack Auto-Fix, Parallel Build)
+name: Raw OnePlus Kernel Build (With Python Fixes)
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
       - name: 1. Clone Kernel Source
         run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
-      - name: 2. Install Build Dependencies (Python3 only)
+      - name: 2. Install Dependencies & Python Setup
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc \
@@ -29,126 +29,25 @@ jobs:
             echo "GCC-Wrapper removed successfully."
           fi
 
-      - name: 4. Redirect python2 calls to python3 (if compatible)
+      - name: 4. Redirect python2 calls to python3
         run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
 
-      - name: 5. Initial Techpack Repair (Known Folders)
-        run: |
-          cd kernel_source
-          for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
-              mkdir -p "$dir"
-              if [ ! -f "$dir/Makefile" ]; then
-                  echo "Creating placeholder Makefile in $dir"
-                  echo "obj-y :=" > "$dir/Makefile"
-              fi
-          done
-
-      - name: 5.1 Disable Techpack in Makefile (Fix Dependency Errors)
-        run: |
-          cd kernel_source
-          sed -i '/techpack/d' Makefile || echo "No techpack lines found to remove."
-
-      - name: 6. Select defconfig and Inject Custom Configs
-        run: |
-          cd kernel_source
-          CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
-          CONFIG_NAME=$(basename $CONFIG)
-          TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
-          {
-            echo "CONFIG_DISABLE_TECHPACK=y"
-            echo "CONFIG_KALLSYMS=y"
-            echo "CONFIG_KALLSYMS_ALL=y"
-            echo "CONFIG_DEVMEM=y"
-            echo "CONFIG_DEVKMEM=y"
-            echo "CONFIG_SYSVIPC=y"
-            echo "CONFIG_NAMESPACES=y"
-            echo "CONFIG_USER_NS=y"
-            echo "CONFIG_PID_NS=y"
-            echo "CONFIG_NET_NS=y"
-            echo "CONFIG_MACVLAN=y"
-            echo "CONFIG_MACVTAP=y"
-            echo "CONFIG_BRIDGE=y"
-            echo "CONFIG_BRIDGE_NETFILTER=y"
-            echo "CONFIG_NET_TUNNEL=y"
-            echo "CONFIG_TUN=y"
-            echo "CONFIG_NET_ACT_POLICE=y"
-            echo "CONFIG_NET_CLS_ACT=y"
-            echo "CONFIG_IP_NF_TARGET_REDIRECT=y"
-            echo "CONFIG_IP_NF_IPTABLES=y"
-            echo "CONFIG_NETFILTER_XT_MATCH=y"
-            echo "CONFIG_NETFILTER_XT_MATCH_STATE=y"
-            echo "CONFIG_CFG80211=y"
-            echo "CONFIG_CFG80211_WEXT=y"
-            echo "CONFIG_MAC80211=y"
-            echo "CONFIG_MAC80211_HAS_RC=y"
-            echo "CONFIG_MAC80211_RC_MINSTREL=y"
-            echo "CONFIG_MAC80211_RC_MINSTREL_HT=y"
-            echo "CONFIG_MAC80211_LEDS=y"
-            echo "CONFIG_RFKILL=y"
-            echo "CONFIG_WIRELESS_EXT=y"
-            echo "CONFIG_WEXT_CORE=y"
-            echo "CONFIG_WEXT_PROC=y"
-            echo "CONFIG_WEXT_SPY=y"
-            echo "CONFIG_WEXT_PRIV=y"
-            echo "CONFIG_USB_NET_RNDIS_WLAN=y"
-          } >> $TARGET_CONFIG
-
-      - name: 7. Generate .config
+      - name: 5. Raw Kernel Build
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          
+          # استخراج اسم الديف كونفيج المتاح
           CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
+          
+          # البناء الخام المباشر
           make $CONFIG_NAME
+          make -j$(nproc) Image.gz-dtb
 
-      - name: 8. Patch objtool to Ignore Warnings
-        run: |
-          cd kernel_source/tools/objtool
-          sed -i 's/-Werror//g' Makefile || echo "No -Werror found, skipping"
-
-      - name: 9. Build Kernel First Attempt (Capture Log)
-        run: |
-          cd kernel_source
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          chmod -R 755 .
-          make clean
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
-
-      - name: 10. Auto-Fix Missing Techpack Folders from Log
-        run: |
-          cd kernel_source
-          grep -i "No such file or directory" build.log | grep "techpack" | awk '{print $NF}' | while read missing; do
-              mkdir -p "$(dirname $missing)"
-              if [ ! -f "$missing" ]; then
-                  echo "Creating placeholder Makefile for missing path $missing"
-                  echo "obj-y :=" > "$missing"
-              fi
-          done
-
-      - name: 11. Rebuild Kernel After Auto-Fix
-        run: |
-          cd kernel_source
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          make -j$(nproc) >> build.log 2>&1 || echo "⚠️ Final build finished"
-
-      - name: 12. Analyze Build Log
-        run: |
-          cd kernel_source
-          grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found."
-          cat build-warnings.log
-
-      - name: 13. Upload Kernel Artifact
+      - name: 6. Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: NetHunter-Kernel-Image
+          name: Raw-Kernel-Image
           path: kernel_source/arch/arm64/boot/Image.gz-dtb
-          if-no-files-found: warn
-
-      - name: 14. Upload Build Warnings Log
-        uses: actions/upload-artifact@v4
-        with:
-          name: Build-Warnings-Log
-          path: kernel_source/build-warnings.log
           if-no-files-found: warn
