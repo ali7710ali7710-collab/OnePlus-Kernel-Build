@@ -95,13 +95,14 @@ jobs:
           echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
           echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
 
-      - name: 5. Prepare .config if missing
+      - name: 5. Generate .config
         run: |
           cd kernel_source
-          if [ ! -f .config ]; then
-              make $CONFIG_NAME olddefconfig || echo "⚠️ Warning: olddefconfig failed, continuing..."
-          fi
-
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          # توليد .config مباشرة بدون تجاهل الأخطاء
+          make $CONFIG_NAME olddefconfig
+          
       - name: 6. Build Kernel First Attempt (Capture Log)
         run: |
           cd kernel_source
