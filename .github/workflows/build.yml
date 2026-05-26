@@ -31,18 +31,27 @@ jobs:
           python --version
           python3 --version
 
-      - name: 4. Build Kernel (Ignore Warnings)
+      - name: 4. Build Kernel (GCC-9 & Force Bash)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # استخراج الكونفيج
+          # 1. تثبيت إصدار قديم متوافق مع النواة
+          apt-get install -y gcc-9 g++-9
+          export CC=gcc-9
+          
+          # 2. إعداد المسارات لـ GCC-9
+          update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 100
+          
+          # 3. إعداد البيئة
           CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
           make $CONFIG_NAME
           
-          # أهم خطوة: إرسال KBUILD_CFLAGS="-Wno-error" لتعطيل تحويل التحذيرات لأخطاء
-          make -j$(nproc) KBUILD_CFLAGS="-Wno-error" Image.gz-dtb
+          # 4. البناء مع تعطيل تحويل التحذيرات لأخطاء (-Wno-error) 
+          # واستخدام bash صريحاً لتجنب خطأ Bad substitution
+          make -j$(nproc) SHELL=/bin/bash KBUILD_CFLAGS="-Wno-error" Image.gz-dtb
+
 
           
       - name: 5. Upload Artifact
