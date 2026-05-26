@@ -1,140 +1,88 @@
-name: Ultra-Safe OnePlus Kernel Build (Final Version, Dynamic Techpack Auto-Fix, Parallel Build)
+name: Ultra-Safe OnePlus Kernel Build (Final)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ARCH: arm64
+      KBUILD_OUTPUT: out
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
-      - name: 1. Clone Kernel Source
-        run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: 2. Install Build Dependencies (Python3 only)
+      # 2️⃣ Setup Python
+      - name: Setup Python
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc \
-          libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
-          sudo ln -sf /usr/bin/python3 /usr/bin/python
-
-      - name: 3. Fix Python 2 Syntax Errors for Python 3
-        run: |
-          cd kernel_source
+          sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
           find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
 
-      - name: 4. Redirect python2 calls to python3 (if compatible)
-        run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
-
-      - name: 5. Initial Techpack Repair (Known Folders)
+      # 3️⃣ Install dependencies
+      - name: Install build dependencies
         run: |
-          cd kernel_source
-          for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
-              mkdir -p "$dir"
-              if [ ! -f "$dir/Makefile" ]; then
-                  echo "Creating placeholder Makefile in $dir"
-                  echo "obj-y :=" > "$dir/Makefile"
-              fi
-          done
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev bison flex libssl-dev \
+            bc ccache wget python3-distutils python3-pip u-boot-tools
 
-      - name: 6. Select defconfig and Inject Custom Configs
+      # 4️⃣ Ensure Techpack files exist
+      - name: Verify Techpack files
         run: |
-          cd kernel_source
-          CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
-          CONFIG_NAME=$(basename $CONFIG)
-          TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
+          mkdir -p kernel_source/techpack/oneplus/config
+          touch kernel_source/techpack/oneplus/config/oneplus.h
+          touch kernel_source/techpack/oneplus/config/coretech.h
+          cp kernel_source/techpack/oneplus/config/defconfig kernel_source/$KBUILD_OUTPUT/.config || true
 
-          echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
-          echo "CONFIG_KALLSYMS=y" >> $TARGET_CONFIG
-          echo "CONFIG_KALLSYMS_ALL=y" >> $TARGET_CONFIG
-          echo "CONFIG_DEVMEM=y" >> $TARGET_CONFIG
-          echo "CONFIG_DEVKMEM=y" >> $TARGET_CONFIG
-          echo "CONFIG_SYSVIPC=y" >> $TARGET_CONFIG
-          echo "CONFIG_NAMESPACES=y" >> $TARGET_CONFIG
-          echo "CONFIG_USER_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
-          echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
-          echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
-          echo "CONFIG_BRIDGE_NETFILTER=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_TUNNEL=y" >> $TARGET_CONFIG
-          echo "CONFIG_TUN=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_ACT_POLICE=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_CLS_ACT=y" >> $TARGET_CONFIG
-          echo "CONFIG_IP_NF_TARGET_REDIRECT=y" >> $TARGET_CONFIG
-          echo "CONFIG_IP_NF_IPTABLES=y" >> $TARGET_CONFIG
-          echo "CONFIG_NETFILTER_XT_MATCH=y" >> $TARGET_CONFIG
-          echo "CONFIG_NETFILTER_XT_MATCH_STATE=y" >> $TARGET_CONFIG
-          echo "CONFIG_CFG80211=y" >> $TARGET_CONFIG
-          echo "CONFIG_CFG80211_WEXT=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_HAS_RC=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_LEDS=y" >> $TARGET_CONFIG
-          echo "CONFIG_RFKILL=y" >> $TARGET_CONFIG
-          echo "CONFIG_WIRELESS_EXT=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_CORE=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_PROC=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_SPY=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
-          echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
+      # 5️⃣ Build objtool first
+      - name: Build objtool
+        working-directory: kernel_source/tools/objtool
+        run: make -j$(nproc)
 
-      - name: 7. Generate .config
+      # 6️⃣ Prepare kernel
+      - name: Prepare kernel source
+        working-directory: kernel_source
         run: |
-          cd kernel_source
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          make $CONFIG_NAME olddefconfig
-
-      - name: 8. Patch objtool to Ignore Warnings
-        run: |
-          cd kernel_source/tools/objtool
-          sed -i 's/-Werror//g' Makefile || echo "No -Werror found, skipping"
-
-      - name: 9. Build Kernel First Attempt (Capture Log)
-        run: |
-          cd kernel_source
-          export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          make clean
           make mrproper
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
+          rm -rf $KBUILD_OUTPUT
+          mkdir -p $KBUILD_OUTPUT
+          # Fix invalid 'm' options
+          sed -i 's/^\(.*\)=m$/\1=y/' $KBUILD_OUTPUT/.config || true
+          make O=$KBUILD_OUTPUT ARCH=$ARCH olddefconfig
 
-      - name: 10. Auto-Fix Missing Techpack Folders from Log
+      # 7️⃣ Build kernel
+      - name: Build kernel
+        working-directory: kernel_source
         run: |
-          cd kernel_source
-          grep -i "No such file or directory" build.log | grep "techpack" | awk '{print $NF}' | while read missing; do
-              mkdir -p "$(dirname $missing)"
-              if [ ! -f "$missing" ]; then
-                  echo "Creating placeholder Makefile for missing path $missing"
-                  echo "obj-y :=" > "$missing"
-              fi
-          done
+          make -j$(nproc) O=$KBUILD_OUTPUT ARCH=$ARCH \
+            CC="ccache gcc" \
+            HOSTCC="gcc" \
+            KBUILD_VERBOSE=1 \
+            LOCALVERSION=-oneplus \
+            V=1
 
-      - name: 11. Rebuild Kernel After Auto-Fix
+      # 8️⃣ Build dtb and modules
+      - name: Build dtb and modules
+        working-directory: kernel_source
         run: |
-          cd kernel_source
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Final build finished with non-critical errors"
+          make O=$KBUILD_OUTPUT ARCH=$ARCH dtbs modules
 
-      - name: 12. Analyze Build Log
-        run: |
-          cd kernel_source
-          grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found."
-          cat build-warnings.log
-
-      - name: 13. Upload Kernel Artifact
+      # 9️⃣ Upload kernel image
+      - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
-          name: NetHunter-Kernel-Image
-          path: kernel_source/arch/arm64/boot/Image.gz-dtb
-          if-no-files-found: warn
+          name: Kernel-Image
+          path: kernel_source/$KBUILD_OUTPUT/arch/arm64/boot/Image.gz-dtb
 
-      - name: 14. Upload Build Warnings Log
+      # 🔟 Upload build warnings log
+      - name: Upload build warnings log
         uses: actions/upload-artifact@v4
         with:
           name: Build-Warnings-Log
-          path: kernel_source/build-warnings.log
-          if-no-files-found: warn
+          path: kernel_source/$KBUILD_OUTPUT/*.log
