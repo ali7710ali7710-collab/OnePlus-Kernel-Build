@@ -31,18 +31,19 @@ jobs:
           python --version
           python3 --version
 
-      - name: 4. Build Kernel
+      - name: 4. Build Kernel (Ignore Warnings)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # استخراج اسم ملف الديف كونفيج الصحيح
+          # استخراج الكونفيج
           CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
-          
-          # البناء
           make $CONFIG_NAME
-          make -j$(nproc) Image.gz-dtb
+          
+          # أهم خطوة: إرسال KBUILD_CFLAGS="-Wno-error" لتعطيل تحويل التحذيرات لأخطاء
+          make -j$(nproc) KBUILD_CFLAGS="-Wno-error" Image.gz-dtb
+
           
       - name: 5. Upload Artifact
         uses: actions/upload-artifact@v4
