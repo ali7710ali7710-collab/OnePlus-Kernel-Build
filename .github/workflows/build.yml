@@ -49,43 +49,44 @@ jobs:
           CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
           CONFIG_NAME=$(basename $CONFIG)
           TARGET_CONFIG="arch/arm64/configs/$CONFIG_NAME"
-
-          echo "CONFIG_DISABLE_TECHPACK=y" >> $TARGET_CONFIG
-          echo "CONFIG_KALLSYMS=y" >> $TARGET_CONFIG
-          echo "CONFIG_KALLSYMS_ALL=y" >> $TARGET_CONFIG
-          echo "CONFIG_DEVMEM=y" >> $TARGET_CONFIG
-          echo "CONFIG_DEVKMEM=y" >> $TARGET_CONFIG
-          echo "CONFIG_SYSVIPC=y" >> $TARGET_CONFIG
-          echo "CONFIG_NAMESPACES=y" >> $TARGET_CONFIG
-          echo "CONFIG_USER_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_PID_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_NS=y" >> $TARGET_CONFIG
-          echo "CONFIG_MACVLAN=y" >> $TARGET_CONFIG
-          echo "CONFIG_MACVTAP=y" >> $TARGET_CONFIG
-          echo "CONFIG_BRIDGE=y" >> $TARGET_CONFIG
-          echo "CONFIG_BRIDGE_NETFILTER=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_TUNNEL=y" >> $TARGET_CONFIG
-          echo "CONFIG_TUN=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_ACT_POLICE=y" >> $TARGET_CONFIG
-          echo "CONFIG_NET_CLS_ACT=y" >> $TARGET_CONFIG
-          echo "CONFIG_IP_NF_TARGET_REDIRECT=y" >> $TARGET_CONFIG
-          echo "CONFIG_IP_NF_IPTABLES=y" >> $TARGET_CONFIG
-          echo "CONFIG_NETFILTER_XT_MATCH=y" >> $TARGET_CONFIG
-          echo "CONFIG_NETFILTER_XT_MATCH_STATE=y" >> $TARGET_CONFIG
-          echo "CONFIG_CFG80211=y" >> $TARGET_CONFIG
-          echo "CONFIG_CFG80211_WEXT=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_HAS_RC=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_RC_MINSTREL=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_RC_MINSTREL_HT=y" >> $TARGET_CONFIG
-          echo "CONFIG_MAC80211_LEDS=y" >> $TARGET_CONFIG
-          echo "CONFIG_RFKILL=y" >> $TARGET_CONFIG
-          echo "CONFIG_WIRELESS_EXT=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_CORE=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_PROC=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_SPY=y" >> $TARGET_CONFIG
-          echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
-          echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
+          {
+            echo "CONFIG_DISABLE_TECHPACK=y"
+            echo "CONFIG_KALLSYMS=y"
+            echo "CONFIG_KALLSYMS_ALL=y"
+            echo "CONFIG_DEVMEM=y"
+            echo "CONFIG_DEVKMEM=y"
+            echo "CONFIG_SYSVIPC=y"
+            echo "CONFIG_NAMESPACES=y"
+            echo "CONFIG_USER_NS=y"
+            echo "CONFIG_PID_NS=y"
+            echo "CONFIG_NET_NS=y"
+            echo "CONFIG_MACVLAN=y"
+            echo "CONFIG_MACVTAP=y"
+            echo "CONFIG_BRIDGE=y"
+            echo "CONFIG_BRIDGE_NETFILTER=y"
+            echo "CONFIG_NET_TUNNEL=y"
+            echo "CONFIG_TUN=y"
+            echo "CONFIG_NET_ACT_POLICE=y"
+            echo "CONFIG_NET_CLS_ACT=y"
+            echo "CONFIG_IP_NF_TARGET_REDIRECT=y"
+            echo "CONFIG_IP_NF_IPTABLES=y"
+            echo "CONFIG_NETFILTER_XT_MATCH=y"
+            echo "CONFIG_NETFILTER_XT_MATCH_STATE=y"
+            echo "CONFIG_CFG80211=y"
+            echo "CONFIG_CFG80211_WEXT=y"
+            echo "CONFIG_MAC80211=y"
+            echo "CONFIG_MAC80211_HAS_RC=y"
+            echo "CONFIG_MAC80211_RC_MINSTREL=y"
+            echo "CONFIG_MAC80211_RC_MINSTREL_HT=y"
+            echo "CONFIG_MAC80211_LEDS=y"
+            echo "CONFIG_RFKILL=y"
+            echo "CONFIG_WIRELESS_EXT=y"
+            echo "CONFIG_WEXT_CORE=y"
+            echo "CONFIG_WEXT_PROC=y"
+            echo "CONFIG_WEXT_SPY=y"
+            echo "CONFIG_WEXT_PRIV=y"
+            echo "CONFIG_USB_NET_RNDIS_WLAN=y"
+          } >> $TARGET_CONFIG
 
       - name: 7. Generate .config
         run: |
@@ -104,8 +105,12 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          # حفظ الإعدادات قبل التنظيف
+          cp .config .config.bak
           make clean
           make mrproper
+          # استعادة الإعدادات
+          mv .config.bak .config
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
 
       - name: 10. Auto-Fix Missing Techpack Folders from Log
@@ -122,6 +127,8 @@ jobs:
       - name: 11. Rebuild Kernel After Auto-Fix
         run: |
           cd kernel_source
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Final build finished with non-critical errors"
 
       - name: 12. Analyze Build Log
