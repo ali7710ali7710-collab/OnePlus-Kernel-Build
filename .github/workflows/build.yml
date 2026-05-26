@@ -38,12 +38,12 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # استخراج اسم الديف كونفيج المتاح
+          # استخراج اسم الديف كونفيج
           CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
           
-          # البناء الخام المباشر
-          make $CONFIG_NAME
-          make -j$(nproc) Image.gz-dtb
+          # البناء باستخدام bash صريح لتجاوز أخطاء Shell
+          bash -c "make $CONFIG_NAME && make -j$(nproc) Image.gz-dtb"
+
 
       - name: 6. Upload Result
         uses: actions/upload-artifact@v4
