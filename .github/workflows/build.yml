@@ -22,9 +22,7 @@ jobs:
       - name: 3. Fix Python 3 Incompatibility and Remove GCC-Wrapper
         run: |
           cd kernel_source
-          # تحويل جميع ملفات .py لتتوافق مع Python 3
           find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
-          # إزالة الغلاف الذي يسبب الخطأ (gcc-wrapper.py) لمنع تعارض البايتات
           if [ -f "scripts/gcc-wrapper.py" ]; then
             rm scripts/gcc-wrapper.py
             sed -i 's/scripts\/gcc-wrapper.py//g' Makefile || true
@@ -95,41 +93,28 @@ jobs:
             echo "CONFIG_USB_NET_RNDIS_WLAN=y"
           } >> $TARGET_CONFIG
 
-      - name: 7. Generate .config (Force Local Config)
+      - name: 7. Generate .config
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          # البحث عن ملف defconfig الصحيح في المجلد
-          CONFIG_FILE=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
-          # استخدام defconfig مباشرة بدلاً من make olddefconfig التي تحاول قراءة إعدادات النظام
-          make $CONFIG_FILE
-          
-          # حقن الإعدادات المطلوبة
-          cat <<EOF >> .config
-          CONFIG_KALLSYMS=y
-          CONFIG_KALLSYMS_ALL=y
-          CONFIG_DISABLE_TECHPACK=y
-          EOF
+          CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
+          make $CONFIG_NAME
+
       - name: 8. Patch objtool to Ignore Warnings
         run: |
           cd kernel_source/tools/objtool
           sed -i 's/-Werror//g' Makefile || echo "No -Werror found, skipping"
 
-      - name: 9. Build Kernel (Final Fix)
+      - name: 9. Build Kernel First Attempt (Capture Log)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          
-          # منح صلاحيات كاملة لكل شيء
-          chmod -R 777 .
-          
-          # تنظيف خفيف فقط
+          chmod -R 755 .
           make clean
-          
-          # البناء باستخدام متغير KBUILD_OUTPUT لمنع الكتابة في المجلدات المحمية
-          make -j$(nproc) Image.gz-dtb > build.log 2>&1 || cat build.log
+          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
+
       - name: 10. Auto-Fix Missing Techpack Folders from Log
         run: |
           cd kernel_source
@@ -141,14 +126,11 @@ jobs:
               fi
           done
 
-      - name: 11. Final Build Phase
+      - name: 11. Rebuild Kernel After Auto-Fix
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          
-          # إعادة التأكيد على الصلاحيات قبل مرحلة التجميع النهائية
-          chmod -R 777 .
           make -j$(nproc) >> build.log 2>&1 || echo "⚠️ Final build finished"
 
       - name: 12. Analyze Build Log
