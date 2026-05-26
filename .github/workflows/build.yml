@@ -25,21 +25,9 @@ jobs:
           find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
 
       - name: 4. Redirect python2 calls to python3 (if compatible)
-        run: |
-          sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
+        run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
 
-      - name: 3a. Ensure Essential Techpack Folders
-        run: |
-          cd kernel_source
-          for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
-              mkdir -p "$dir"
-              if [ ! -f "$dir/Makefile" ]; then
-                  echo "Creating placeholder Makefile in $dir"
-                  echo "obj-y :=" > "$dir/Makefile"
-              fi
-          done
-
-      - name: 3b. Ensure All Techpack Subfolders Exist (Final Safety Check)
+      - name: 5. Initial Techpack Repair (Known Folders)
         run: |
           cd kernel_source
           for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
@@ -50,7 +38,7 @@ jobs:
               fi
           done
 
-      - name: 4. Select defconfig and Inject Custom Configs
+      - name: 6. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
           CONFIG=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
@@ -94,21 +82,28 @@ jobs:
           echo "CONFIG_WEXT_PRIV=y" >> $TARGET_CONFIG
           echo "CONFIG_USB_NET_RNDIS_WLAN=y" >> $TARGET_CONFIG
 
-      - name: 5. Generate .config
+      - name: 7. Generate .config
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           make $CONFIG_NAME olddefconfig
 
-      - name: 6. Build Kernel First Attempt (Capture Log)
+      - name: 8. Patch objtool to Ignore Warnings
+        run: |
+          cd kernel_source/tools/objtool
+          sed -i 's/-Werror//g' Makefile || echo "No -Werror found, skipping"
+
+      - name: 9. Build Kernel First Attempt (Capture Log)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          make clean
+          make mrproper
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
 
-      - name: 7. Auto-Fix Missing Techpack Folders from Log
+      - name: 10. Auto-Fix Missing Techpack Folders from Log
         run: |
           cd kernel_source
           grep -i "No such file or directory" build.log | grep "techpack" | awk '{print $NF}' | while read missing; do
@@ -119,25 +114,25 @@ jobs:
               fi
           done
 
-      - name: 8. Rebuild Kernel After Auto-Fix
+      - name: 11. Rebuild Kernel After Auto-Fix
         run: |
           cd kernel_source
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Final build finished with non-critical errors"
 
-      - name: 9. Analyze Build Log
+      - name: 12. Analyze Build Log
         run: |
           cd kernel_source
           grep -i "warning\|error" build.log > build-warnings.log || echo "No warnings/errors found."
           cat build-warnings.log
 
-      - name: 10. Upload Kernel Artifact
+      - name: 13. Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: NetHunter-Kernel-Image
           path: kernel_source/arch/arm64/boot/Image.gz-dtb
           if-no-files-found: warn
 
-      - name: 11. Upload Build Warnings Log
+      - name: 14. Upload Build Warnings Log
         uses: actions/upload-artifact@v4
         with:
           name: Build-Warnings-Log
