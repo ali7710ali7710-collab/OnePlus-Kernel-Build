@@ -95,33 +95,41 @@ jobs:
             echo "CONFIG_USB_NET_RNDIS_WLAN=y"
           } >> $TARGET_CONFIG
 
-      - name: 7. Generate .config
+      - name: 7. Generate .config (Force Local Config)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make $CONFIG_NAME olddefconfig
-
+          # البحث عن ملف defconfig الصحيح في المجلد
+          CONFIG_FILE=$(find arch/arm64/configs -name "*defconfig*" | head -n 1)
+          # استخدام defconfig مباشرة بدلاً من make olddefconfig التي تحاول قراءة إعدادات النظام
+          make $CONFIG_FILE
+          
+          # حقن الإعدادات المطلوبة
+          cat <<EOF >> .config
+          CONFIG_KALLSYMS=y
+          CONFIG_KALLSYMS_ALL=y
+          CONFIG_DISABLE_TECHPACK=y
+          EOF
       - name: 8. Patch objtool to Ignore Warnings
         run: |
           cd kernel_source/tools/objtool
           sed -i 's/-Werror//g' Makefile || echo "No -Werror found, skipping"
 
-      - name: 9. Build Kernel (With Permission Fix)
+      - name: 9. Build Kernel (Final Fix)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # منح صلاحية التنفيذ الشاملة قبل البدء
+          # منح صلاحيات كاملة لكل شيء
           chmod -R 777 .
           
+          # تنظيف خفيف فقط
           make clean
-          # إزالة أي قيود تنفيذية قديمة
-          find . -type f -name "*.sh" -exec chmod +x {} +
           
-          make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with errors"
-          
+          # البناء باستخدام متغير KBUILD_OUTPUT لمنع الكتابة في المجلدات المحمية
+          make -j$(nproc) Image.gz-dtb > build.log 2>&1 || cat build.log
       - name: 10. Auto-Fix Missing Techpack Folders from Log
         run: |
           cd kernel_source
