@@ -22,9 +22,8 @@ jobs:
       - name: 3. Fix Python 2 Syntax Errors for Python 3
         run: |
           cd kernel_source
-          # هذا الأمر يضيف أقواس لجميع أوامر print في ملفات البايثون تلقائياً
           find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
-          
+
       - name: 4. Redirect python2 calls to python3 (if compatible)
         run: |
           sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
@@ -32,7 +31,6 @@ jobs:
       - name: 3. Initial Techpack Repair (Known Folders)
         run: |
           cd kernel_source
-          # Create known essential directories with placeholder Makefiles
           for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace; do
               mkdir -p "$dir"
               if [ ! -f "$dir/Makefile" ]; then
@@ -40,10 +38,10 @@ jobs:
                   echo "obj-y :=" > "$dir/Makefile"
               fi
           done
+
       - name: 3a. Ensure Essential Techpack Folders
         run: |
           cd kernel_source
-          # Ensure all known and missing techpack folders exist
           for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
               mkdir -p "$dir"
               if [ ! -f "$dir/Makefile" ]; then
@@ -52,9 +50,10 @@ jobs:
               fi
           done
 
-      - name: 3b. Ensure All Techpack Subfolders Exist
+      - name: 3b. Ensure All Techpack Subfolders Before Build
         run: |
           cd kernel_source
+          # ✅ هذه هي الخطوة الجديدة المضافة لضمان جميع المجلدات قبل أي build
           for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
               mkdir -p "$dir"
               if [ ! -f "$dir/Makefile" ]; then
@@ -62,6 +61,7 @@ jobs:
                   echo "obj-y :=" > "$dir/Makefile"
               fi
           done
+
       - name: 4. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
@@ -111,7 +111,6 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          # توليد .config مباشرة بدون تجاهل الأخطاء
           make $CONFIG_NAME olddefconfig
           
       - name: 6. Build Kernel First Attempt (Capture Log)
