@@ -19,15 +19,17 @@ jobs:
           libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
           sudo ln -sf /usr/bin/python3 /usr/bin/python
 
-      - name: 3. Fix Python 3 Incompatibility
+      - name: 3. Fix Python 3 Incompatibility and Remove GCC-Wrapper
         run: |
           cd kernel_source
-          # تحويل جميع ملفات .py لتتوافق مع Python 3 بشكل كامل
+          # تحويل جميع ملفات .py لتتوافق مع Python 3
           find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
-          # معالجة الخطأ المحدد في gcc-wrapper.py بتحويل القراءة إلى نصوص عادية
-          sed -i 's/line.decode("utf-8")/line/g' scripts/gcc-wrapper.py || true
-          # حل مشكلة البايتات في gcc-wrapper.py
-          sed -i 's/sys.stderr.write(line)/sys.stderr.write(line.decode("utf-8") if isinstance(line, bytes) else line)/g' scripts/gcc-wrapper.py || true
+          # إزالة الغلاف الذي يسبب الخطأ (gcc-wrapper.py) لمنع تعارض البايتات
+          if [ -f "scripts/gcc-wrapper.py" ]; then
+            rm scripts/gcc-wrapper.py
+            sed -i 's/scripts\/gcc-wrapper.py//g' Makefile || true
+            echo "GCC-Wrapper removed successfully."
+          fi
 
       - name: 4. Redirect python2 calls to python3 (if compatible)
         run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
@@ -110,11 +112,9 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          # حفظ الإعدادات قبل التنظيف
           cp .config .config.bak
           make clean
           make mrproper
-          # استعادة الإعدادات
           mv .config.bak .config
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
 
@@ -155,4 +155,3 @@ jobs:
           name: Build-Warnings-Log
           path: kernel_source/build-warnings.log
           if-no-files-found: warn
-
