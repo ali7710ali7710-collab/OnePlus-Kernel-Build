@@ -112,11 +112,21 @@ jobs:
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
+          
+          # حفظ الإعدادات وصلاحيات المجلد
           cp .config .config.bak
+          
+          # تنظيف آمن دون تدمير الصلاحيات
           make clean
           make mrproper
+          
+          # استعادة الإعدادات وإعادة منح صلاحيات التنفيذ لكل شيء في المجلد
           mv .config.bak .config
+          chmod -R +x .
+          
+          # البناء مع توجيه الصلاحيات
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
+
 
       - name: 10. Auto-Fix Missing Techpack Folders from Log
         run: |
