@@ -1,4 +1,4 @@
-name: Raw OnePlus Kernel Build (With Python Fixes)
+name: Final Optimized Kernel Build
 
 on:
   push:
@@ -8,56 +8,45 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # استخدام حاوية Ubuntu 20.04 لضمان توافق Python 2 و أدوات البناء القديمة
+    container:
+      image: ubuntu:20.04
+      env:
+        DEBIAN_FRONTEND: noninteractive
+
     steps:
-      - name: 1. Clone Kernel Source
+      - name: 1. Install Dependencies
+        run: |
+          apt-get update
+          apt-get install -y git build-essential gcc-aarch64-linux-gnu flex bison bc \
+          libssl-dev libncurses-dev libelf-dev python python3
+          
+      - name: 2. Clone Kernel Source
         run: git clone https://github.com/OnePlusOSS/android_kernel_oneplus_sm4350.git kernel_source
 
-      - name: 2. Install Dependencies & Python Setup
+      - name: 3. Configure Python Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu build-essential flex bison bc \
-          libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
-          sudo ln -sf /usr/bin/python3 /usr/bin/python
+          # التأكد من أن أمر python يشير إلى Python 2.7
+          ln -sf /usr/bin/python2.7 /usr/bin/python
+          python --version
+          python3 --version
 
-      - name: 3. Fix Python 3 Incompatibility and Remove GCC-Wrapper
+      - name: 4. Build Kernel
         run: |
-          cd kernel_source
-          find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
-          if [ -f "scripts/gcc-wrapper.py" ]; then
-            rm scripts/gcc-wrapper.py
-            sed -i 's/scripts\/gcc-wrapper.py//g' Makefile || true
-            echo "GCC-Wrapper removed successfully."
-          fi
-
-      - name: 4. Redirect python2 calls to python3
-        run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
-        
-          
-      - name: 5. Professional Out-of-Tree Build
-        run: |
-          # الانتقال للمسار وتحديد مخرج البناء
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # إنشاء مجلد مخرجات في مسار خارج السورس كود
-          mkdir -p ../out
-          export KBUILD_OUTPUT=../out
-          
-          # استخراج الكونفيج وتجهيزه
+          # استخراج اسم ملف الديف كونفيج الصحيح
           CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
-          make O=$KBUILD_OUTPUT $CONFIG_NAME
           
-          # البناء من المجلد الخارجي مع تجاوز الـ shell الافتراضي
-          make O=$KBUILD_OUTPUT -j$(nproc) Image.gz-dtb SHELL=/bin/bash
+          # البناء
+          make $CONFIG_NAME
+          make -j$(nproc) Image.gz-dtb
           
-          # نسخ النتيجة للمسار الذي تتوقعه الخطوات التالية
-          cp ../out/arch/arm64/boot/Image.gz-dtb arch/arm64/boot/Image.gz-dtb
-
-
-      - name: 6. Upload Result
+      - name: 5. Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Raw-Kernel-Image
+          name: Final-Build-Kernel
           path: kernel_source/arch/arm64/boot/Image.gz-dtb
-          if-no-files-found: warn
+          if-no-files-found: error
