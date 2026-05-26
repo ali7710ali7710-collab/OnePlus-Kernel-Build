@@ -19,10 +19,15 @@ jobs:
           libssl-dev libcrypto++-dev libncurses-dev libelf-dev python3 python3-minimal python3-venv
           sudo ln -sf /usr/bin/python3 /usr/bin/python
 
-      - name: 3. Fix Python 2 Syntax Errors for Python 3
+      - name: 3. Fix Python 3 Incompatibility
         run: |
           cd kernel_source
+          # تحويل جميع ملفات .py لتتوافق مع Python 3 بشكل كامل
           find . -name "*.py" -exec sed -i 's/print \([^()]*\)/print(\1)/g' {} +
+          # معالجة الخطأ المحدد في gcc-wrapper.py بتحويل القراءة إلى نصوص عادية
+          sed -i 's/line.decode("utf-8")/line/g' scripts/gcc-wrapper.py || true
+          # حل مشكلة البايتات في gcc-wrapper.py
+          sed -i 's/sys.stderr.write(line)/sys.stderr.write(line.decode("utf-8") if isinstance(line, bytes) else line)/g' scripts/gcc-wrapper.py || true
 
       - name: 4. Redirect python2 calls to python3 (if compatible)
         run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
