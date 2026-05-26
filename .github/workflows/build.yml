@@ -38,6 +38,11 @@ jobs:
               fi
           done
 
+      - name: 5.1 Disable Techpack in Makefile (Fix Dependency Errors)
+        run: |
+          cd kernel_source
+          sed -i '/techpack/d' Makefile || echo "No techpack lines found to remove."
+
       - name: 6. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
