@@ -31,18 +31,28 @@ jobs:
 
       - name: 4. Redirect python2 calls to python3
         run: sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
-
-      - name: 5. Raw Kernel Build
+        
+          
+      - name: 5. Professional Out-of-Tree Build
         run: |
+          # الانتقال للمسار وتحديد مخرج البناء
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           
-          # استخراج اسم الديف كونفيج
-          CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
+          # إنشاء مجلد مخرجات في مسار خارج السورس كود
+          mkdir -p ../out
+          export KBUILD_OUTPUT=../out
           
-          # البناء باستخدام bash صريح لتجاوز أخطاء Shell
-          bash -c "make $CONFIG_NAME && make -j$(nproc) Image.gz-dtb"
+          # استخراج الكونفيج وتجهيزه
+          CONFIG_NAME=$(basename $(find arch/arm64/configs -name "*defconfig*" | head -n 1))
+          make O=$KBUILD_OUTPUT $CONFIG_NAME
+          
+          # البناء من المجلد الخارجي مع تجاوز الـ shell الافتراضي
+          make O=$KBUILD_OUTPUT -j$(nproc) Image.gz-dtb SHELL=/bin/bash
+          
+          # نسخ النتيجة للمسار الذي تتوقعه الخطوات التالية
+          cp ../out/arch/arm64/boot/Image.gz-dtb arch/arm64/boot/Image.gz-dtb
 
 
       - name: 6. Upload Result
