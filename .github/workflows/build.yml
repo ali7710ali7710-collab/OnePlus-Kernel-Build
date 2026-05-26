@@ -51,6 +51,17 @@ jobs:
                   echo "obj-y :=" > "$dir/Makefile"
               fi
           done
+
+      - name: 3b. Ensure All Techpack Subfolders Exist
+        run: |
+          cd kernel_source
+          for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
+              mkdir -p "$dir"
+              if [ ! -f "$dir/Makefile" ]; then
+                  echo "Creating placeholder Makefile in $dir"
+                  echo "obj-y :=" > "$dir/Makefile"
+              fi
+          done
       - name: 4. Select defconfig and Inject Custom Configs
         run: |
           cd kernel_source
