@@ -1,4 +1,4 @@
-name: Ultra-Safe OnePlus Kernel Build (Dynamic Techpack Auto-Fix, Parallel Build)
+name: Ultra-Safe OnePlus Kernel Build (Final Version, Dynamic Techpack Auto-Fix, Parallel Build)
 
 on:
   push:
@@ -28,17 +28,6 @@ jobs:
         run: |
           sudo ln -sf /usr/bin/python3 /usr/bin/python2 || true
 
-      - name: 3. Initial Techpack Repair (Known Folders)
-        run: |
-          cd kernel_source
-          for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace; do
-              mkdir -p "$dir"
-              if [ ! -f "$dir/Makefile" ]; then
-                  echo "Creating placeholder Makefile in $dir"
-                  echo "obj-y :=" > "$dir/Makefile"
-              fi
-          done
-
       - name: 3a. Ensure Essential Techpack Folders
         run: |
           cd kernel_source
@@ -50,10 +39,9 @@ jobs:
               fi
           done
 
-      - name: 3b. Ensure All Techpack Subfolders Before Build
+      - name: 3b. Ensure All Techpack Subfolders Exist (Final Safety Check)
         run: |
           cd kernel_source
-          # ✅ هذه هي الخطوة الجديدة المضافة لضمان جميع المجلدات قبل أي build
           for dir in techpack/oneplus/power techpack/oneplus/display techpack/oneplus/sensors techpack/oneplus/slabtrace techpack/oneplus/tri_state_key; do
               mkdir -p "$dir"
               if [ ! -f "$dir/Makefile" ]; then
@@ -112,14 +100,12 @@ jobs:
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
           make $CONFIG_NAME olddefconfig
-          
+
       - name: 6. Build Kernel First Attempt (Capture Log)
         run: |
           cd kernel_source
           export ARCH=arm64
           export CROSS_COMPILE=aarch64-linux-gnu-
-          make clean
-          make mrproper
           make -j$(nproc) > build.log 2>&1 || echo "⚠️ Initial build finished with non-critical errors"
 
       - name: 7. Auto-Fix Missing Techpack Folders from Log
